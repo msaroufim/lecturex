@@ -43,13 +43,15 @@ int main()
     b = (float *)malloc(size); random_init(b, N);
     c = (float *)malloc(size);
 
+    cudaEvent_t start, stop, startCoarsened, stopCoarsened;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventCreate(&startCoarsened);
+    cudaEventCreate(&stopCoarsened);
+
     // Copy inputs to device
     cudaMemcpy(d_a, a, size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, size, cudaMemcpyHostToDevice);
-
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
 
     // Start timer for VecAdd kernel
     cudaEventRecord(start);
@@ -63,6 +65,18 @@ int main()
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("VecAdd execution time: %f ms\n", milliseconds);
 
+    // Start timer for VecAddCoarsened kernel
+    cudaEventRecord(startCoarsened);
+    VecAddCoarsened<<<(N + 2*THREADS_PER_BLOCK - 1) / (2*THREADS_PER_BLOCK), THREADS_PER_BLOCK>>>(d_a, d_b, d_c);
+    cudaEventRecord(stopCoarsened);
+
+    // Wait for VecAddCoarsened kernel to finish
+    cudaEventSynchronize(stopCoarsened);
+
+    float millisecondsCoarsened = 0;
+    cudaEventElapsedTime(&millisecondsCoarsened, startCoarsened, stopCoarsened);
+    printf("VecAddCoarsened execution time: %f ms\n", millisecondsCoarsened);
+
     // Copy result back to host
     cudaMemcpy(c, d_c, size, cudaMemcpyDeviceToHost);
 
@@ -72,6 +86,8 @@ int main()
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
+    cudaEventDestroy(startCoarsened);
+    cudaEventDestroy(stopCoarsened);
 
     return 0;
 }
