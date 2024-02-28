@@ -31,6 +31,7 @@ int main() {
     initializeArray(in, n);
 
     int blockSize = 128; // Define block size
+    // int blockSize = 1024; // change this when talking about occupancy
     int numBlocks = (n + blockSize - 1) / blockSize; // Ensure there are enough blocks to cover all elements
 
     // Launch non-coalesced kernel

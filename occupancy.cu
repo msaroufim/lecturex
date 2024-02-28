@@ -1,24 +1,47 @@
+#include <iostream>
+#include <cuda_runtime.h>
 
-
-__global__ void computeKernel(float* input, float* output, int N) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N) {
-        float value = input[idx];
-        // A simple computation, for demonstration purposes
-        output[idx] = value * value;
+__global__ void copyDataCoalesced(float *in, float *out, int n) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < n) {
+        out[index] = in[index];
     }
 }
 
-
-// https://leimao.github.io/blog/CUDA-Occupancy-Calculation/
-// Assume an optimal block size found through experimentation or the CUDA Occupancy Calculator
-#define BLOCK_SIZE 256 // Example optimal block size
-
-__global__ void computeKernelOptimized(float* input, float* output, int N) {
-    int idx = blockIdx.x * BLOCK_SIZE + threadIdx.x;
-    if (idx < N) {
-        // Simplified computation to reduce register usage
-        float value = input[idx];
-        output[idx] = sqrt(value);
+void initializeArray(float *arr, int n) {
+    for(int i = 0; i < n; ++i) {
+        arr[i] = static_cast<float>(i);
     }
+}
+
+int main() {
+    const int n = 1 << 24; // Adjust the data size for workload
+    float *in, *out;
+
+    cudaMallocManaged(&in, n * sizeof(float));
+    cudaMallocManaged(&out, n * sizeof(float));
+
+    initializeArray(in, n);
+
+    int blockSize = 1024; // Optimal block size for many devices
+    int numBlocks = (n + blockSize - 1) / blockSize; // Calculate the number of blocks
+
+    // Optimize grid dimensions based on device properties
+    int minGridSize = 40;
+    // cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, copyDataCoalesced, 0, 0);
+
+    // Print suggested block size and minimum grid size
+    std::cout << "Recommended block size: " << blockSize
+              << ", Minimum grid size: " << minGridSize << std::endl;
+
+    numBlocks = (n + blockSize - 1) / blockSize;
+
+    // Launch coalesced kernel
+    copyDataCoalesced<<<numBlocks, blockSize>>>(in, out, n);
+    cudaDeviceSynchronize();
+
+    cudaFree(in);
+    cudaFree(out);
+
+    return 0;
 }
